@@ -18,7 +18,7 @@ org 029e6h
 load_fids_start:  ; 29e6 in J15CPM3.EMT - eda9 once loaded into memory
     ; switch in our extra page
     di                      ;F3
-    ld a,090h               ;3E 90
+    ld a,08fh               ;3E 90
     out (0f2h),a            ;D3 F2
     ; go and run code there
     jp preload_sd_fid               ;C3 00 80

@@ -11,7 +11,7 @@ org 0a880h
 extra_bootstrap:
     ; load block2code into page 16
     di
-    ld a,090h       ; load page 16 into block 0
+    ld a,08fh       ; load page 16 into block 0
     out (0f0h),a
     ld hl,block2code
     ld de,0
@@ -20,6 +20,9 @@ extra_bootstrap:
     ldir            ; copy code into page 16
     ld a,080h       ; load page 0 back into block 0
     out (0f0h),a
+
+    ld a,08fh       ; bootstrap used to wipe pages 4-15
+    ld (002bh),a    ; now stop at page 14 (change 'cp 090h' to 'cp 08fh')
 
     ; now execute the original bootstrap code we overwrote
 	ld hl,0fff0h
@@ -75,6 +78,12 @@ directory: db 0
 directory_end:
 
 switch_back:  ; this gets loaded at 7000h in bank 1
+    ; ld hl,08000h ; wipe out all of this
+    ; ld de,08001h
+    ; ld bc,03fffh
+    ; ld (hl),0
+    ; ldir
+
     ld a,082h
     out (0f2h),a
     ei
