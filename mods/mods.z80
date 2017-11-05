@@ -1,0 +1,24 @@
+extra_boostrap: equ 0a880h ; this is the next byte after J15CPM3.EMT ends
+preload_sd_fid: equ 08000h
+org 00006h
+    ; replace the first ldir with a call to our bootstrap code
+    call extra_boostrap ; CD 80 A8
+    nop                 ; 00 00 00 00 00 00 00 00 00 00
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop ; (10 nops)
+
+org 029e6h
+load_fids_start:  ; 29e6 in J15CPM3.EMT - eda9 once loaded into memory
+    ; switch in our extra page
+    di                      ;F3
+    ld a,090h               ;3E 90
+    out (0f2h),a            ;D3 F2
+    ; go and run code there
+    jp preload_sd_fid               ;C3 00 80

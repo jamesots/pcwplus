@@ -1,0 +1,121 @@
+load_fids_start: equ 0eda9h
+checksum_is_good: equ 0ee51h
+set_action_on_hardware_error: equ 0efc3h
+load_fids_really_start: equ 0edb7h
+bios_userf: equ 0fc5ah
+after_close_file: equ 0ee0fh
+start_fid_find: equ 0edbeh
+
+org 0a880h
+; this is extra code to be be added at the end of j15cpm3.emt
+extra_bootstrap:
+    ; load block2code into page 16
+    di
+    ld a,090h       ; load page 16 into block 0
+    out (0f0h),a
+    ld hl,block2code
+    ld de,0
+    ld bc,02000h    ; should be block2code_end - block2code, but z80asm won't calculate this
+                    ; so 2000h should be enough!
+    ldir            ; copy code into page 16
+    ld a,080h       ; load page 0 back into block 0
+    out (0f0h),a
+
+    ; now execute the original bootstrap code we overwrote
+	ld hl,0fff0h
+	ld de,0fff1h
+	ld bc,0000fh
+	ld (hl),000h
+	ldir
+
+    ret             ; and return to do the rest of the bootstrap
+
+block2code:
+org 08000h
+    ; this gets called instead of the usual FID loading code
+    ; we load the fid file into memory at 100h, create a directory
+    ; entry a 005ch so that the normal FID code thinks it was
+    ; loaded from disk, and then continues as normal
+preload_sd_fid:
+    ; at this point page 4 is in bank 0
+    ; (that's the low TPA bank)
+    ; i'm guessing it's 4 5 6 7
+    ; copy sdcard.fid to 100h
+    ld hl,fid_start
+    ld de,00100h
+    ld bc,fid_end - fid_start
+    ldir
+
+    ; copy directory entry
+    ld hl,directory
+    ld de,0005ch
+    ld bc,directory_end - directory
+    ldir
+
+    ; copy the code which was originally at load_fids_start
+    ; back there, so CP/M won't even know it was modified
+    ld hl,orig_load_fids_start
+    ld de,load_fids_start ; eda9
+    ld bc,8
+    ldir
+
+    ; copy some code into bank 1 so we can
+    ; switch bank back without losing our place (otherwise
+    ; when the bank switches we start running whatever code
+    ; is in the other bank)
+    ld hl,switch_back
+    ld de,07000h ; put it near the end of bank 2
+    ld bc,switch_back_end - switch_back
+    ldir
+    jp 07000h
+; A fake directory entry. It looks like just the name is needed
+directory: db 0
+    db "SDCARD  FID"
+    ds 25
+directory_end:
+
+switch_back:  ; this gets loaded at 7000h in bank 1
+    ld a,082h
+    out (0f2h),a
+    ei
+
+    ld e,0feh
+    call set_action_on_hardware_error   ; this wasn't called before, might not be necessary
+        ; as we don't end up loading any FID files
+
+;hl=280 de=005c bc=0000 a=0
+;stack edf0 01b7 edac
+    ; another close_file routine is normally called here. since we haven't
+    ; actually loaded a file, just set the carry flag instead.
+    ld a,037h       ; 37h is opcode for SCF (set carry flag)
+    ld (0ee65h),a   
+    ld (0ee66h),a   ; might as well put it here as well instead of nops
+    ld (0ee67h),a   ; since it's already in the A register
+
+    ld b,01h
+    push bc
+    ld de,0005ch
+    call after_close_file ; call the code which would normally be executed after the first close_file
+    pop bc
+
+    ld a,0cdh       ; now our FID is loaded, put the original call close_file back in
+    ld (0ee65h),a
+    ld a,0bfh
+    ld (0ee66h),a
+    ld a,0efh
+    ld (0ee67h),a
+
+    jp 0edach       ; jump to the code that would have executed after the original call here
+    ret
+switch_back_end:
+
+orig_load_fids_start:
+    call load_fids_really_start
+    call bios_userf
+    dw 0f3b7h
+
+fid_start:
+incbin '../binsrc/sdcard.fid'
+fid_end:
+
+block2code_end:
